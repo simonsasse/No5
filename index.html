@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Three.js Image Tracking Example (MindAR)</title>
+  <script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+    "mindar-image-three":"https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js"
+  }
+}
+</script>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+    }
+
+    #container {
+      width: 100vw;
+      height: 100vh;
+      position: absolute;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="container"></div>
+  <script type="module">
+    import * as THREE from 'three';
+    import { MindARThree } from 'mindar-image-three';
+    import { GLTFLoader } from "https://cdn.rawgit.com/mrdoob/three.js/master/examples/jsm/loaders/GLTFLoader.js"
+    import { RGBELoader } from "https://cdn.rawgit.com/mrdoob/three.js/master/examples/jsm/loaders/RGBELoader.js"
+
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      const mindarThree = new MindARThree({
+        container: document.querySelector("#container"),
+        imageTargetSrc: "public/targets/targets.mind" // <-- Use your compiled .mind file
+      });
+      const { renderer, scene, camera } = mindarThree;
+
+      // Add simple geometry (replace with your model if wanted)
+      const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+      const material = new THREE.MeshNormalMaterial();
+      const cube = new THREE.Mesh(geometry, material);
+
+      // add hdri lighting
+      const hdrLoader = new RGBELoader();
+      hdrLoader.setDataType(THREE.UnsignedByteType);
+      hdrLoader.load('public/background.hdr', (texture) => {
+        const pmremGenerator = new THREE.PMREMGenerator(renderer);
+        pmremGenerator.compileEquirectangularShader();
+
+        const envMap = pmremGenerator.fromEquirectangular(texture).texture;
+        scene.environment = envMap;
+        scene.background = envMap;
+
+        console.log("HDRI loaded");
+
+        texture.dispose();
+        pmremGenerator.dispose();
+      });
+
+      // add a 3d model here instead
+      const loader = new GLTFLoader();
+
+      const model = loader.load('public/models/scene.gltf', handlerFunc);
+
+      // define handlerFunc
+      function handlerFunc(gltf) {
+        const modelScene = gltf.scene || gltf.scenes?.[0] || gltf;
+
+        // Adjust transform to a reasonable default (tweak as needed)
+        modelScene.scale.set(0.5, 0.5, 0.5);
+        modelScene.position.set(0, -1, 0);
+        modelScene.rotation.set(0, 0, 0);
+
+        // Anchor to the first target (index 0)
+        const anchor = mindarThree.addAnchor(0);
+        anchor.group.add(modelScene);
+
+        const { renderer, scene, camera } = mindarThree;
+        anchor.onTargetFound = () => {
+          anchor.group.visible = true;
+        };
+        anchor.onTargetLost = () => {
+          anchor.group.visible = true; // preserve last pose while the marker is out of view
+        };
+
+        print("Model loaded and anchored");
+        return modelScene;
+      }
+
+
+
+
+
+
+
+
+
+      // add the model when it's loaded
+
+
+      // Start
+      await mindarThree.start();
+      renderer.setAnimationLoop(() => {
+        renderer.render(scene, camera);
+      });
+    });
+  </script>
+</body>
+
+</html>
