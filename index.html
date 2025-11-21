@@ -38,7 +38,9 @@
     document.addEventListener("DOMContentLoaded", async () => {
       const mindarThree = new MindARThree({
         container: document.querySelector("#container"),
-        imageTargetSrc: "public/targets/targets.mind" // <-- Use your compiled .mind file
+        imageTargetSrc: "public/targets/targets.mind", // <-- Use your compiled .mind file
+        missTolerance: 40, // increase missTolerance to avoid flickering
+        filterMinCF: 0.9,
       });
       const { renderer, scene, camera } = mindarThree;
 
@@ -88,20 +90,24 @@
 
         // Adjust transform to a reasonable default (tweak as needed)
         modelScene.scale.set(0.5, 0.5, 0.5);
-        modelScene.position.set(0, -1, 0);
+        modelScene.position.set(0, -2, 0);
         modelScene.rotation.set(0, 0, 0);
 
         // Anchor to the first target (index 0)
         const anchor = mindarThree.addAnchor(0);
-        anchor.group.add(modelScene);
 
-        const { renderer, scene, camera } = mindarThree;
-        anchor.onTargetFound = () => {
-          anchor.group.visible = true;
-        };
-        anchor.onTargetLost = () => {
-          anchor.group.visible = true; // preserve last pose while the marker is out of view
-        };
+        anchor.group.add(modelScene);
+        // instantiate model where the anchor is but don't parent it to the anchor group
+        // scene.add(modelScene);
+
+        // anchor.onTargetFound = () => {
+        //   scene.add(modelScene);
+        //   // set modelScene position relative to anchor.group
+        //   modelScene.position.copy(anchor.group.position);
+        // };
+        // anchor.onTargetLost = () => {
+        //   anchor.group.visible = true; // preserve last pose while the marker is out of view
+        // };
 
         console.log("Model loaded and anchored");
         return modelScene;
