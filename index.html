@@ -27,8 +27,9 @@
 
     #spin-toggle {
       position: absolute;
-      top: 32px;
-      left: 32px;
+      bottom: 32px;
+      left: 50%;
+      transform: translateX(-50%);
       z-index: 10;
       padding: 12px 24px;
       border: none;
@@ -47,7 +48,7 @@
       justify-content: center;
       background: #000;
       z-index: 200;
-      transition: opacity 0.4s ease;
+      transition: opacity 0.2s ease;
     }
 
     #intro-overlay.fade-out {
@@ -111,9 +112,9 @@
 
       const finalPosition = new THREE.Vector3(0, -2, 0);
       const finalScale = new THREE.Vector3(0.4, 0.4, 0.4);
-      const startScale = finalScale.clone().multiplyScalar(0.6);
-      const entryOffset = 0.6;
-      const entryDuration = 0.4;
+      const startScale = finalScale.clone().multiplyScalar(0.9);
+      const entryOffset = 0.4;
+      const entryDuration = 0.2;
       let entryElapsed = entryDuration;
       let modelScene = null;
 
@@ -168,7 +169,7 @@
       const overlay = document.getElementById("intro-overlay");
       const frameEl = document.getElementById("intro-frame");
       const framePaths = Array.from({ length: frameCount }, (_, i) =>
-        `${frameBasePath}/${String(i + 1).padStart(4, "0")}.png`
+        `${frameBasePath}/${String(i + 1).padStart(4, "0")}.jpg`
       );
       const preloadImage = (src) => new Promise((resolve, reject) => {
         const img = new Image();
