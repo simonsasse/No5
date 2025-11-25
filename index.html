@@ -16,6 +16,7 @@
     body {
       margin: 0;
       overflow: hidden;
+      font-family: sans-serif;
     }
 
     #container {
@@ -23,11 +24,50 @@
       height: 100vh;
       position: absolute;
     }
+
+    #spin-toggle {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      z-index: 10;
+      padding: 6px 12px;
+      border: none;
+      border-radius: 4px;
+      background: rgba(0, 0, 0, 0.7);
+      color: #fff;
+      cursor: pointer;
+    }
+
+    #intro-overlay {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+      z-index: 200;
+      transition: opacity 0.4s ease;
+    }
+
+    #intro-overlay.fade-out {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    #intro-frame {
+      max-width: 60vw;
+      max-height: 60vh;
+      object-fit: contain;
+    }
   </style>
 </head>
 
 <body>
+  <div id="intro-overlay">
+    <img id="intro-frame" alt="Loading animation">
+  </div>
   <div id="container"></div>
+  <button id="spin-toggle" type="button">Start Spin</button>
   <script type="module">
     import * as THREE from 'three';
     import { MindARThree } from 'mindar-image-three';
@@ -36,6 +76,7 @@
 
 
     document.addEventListener("DOMContentLoaded", async () => {
+      await playIntroAnimation();
       const mindarThree = new MindARThree({
         container: document.querySelector("#container"),
         imageTargetSrc: "public/targets/targets.mind", // <-- Use your compiled .mind file
@@ -44,92 +85,138 @@
       });
       const { renderer, scene, camera } = mindarThree;
 
-      // Add simple geometry (replace with your model if wanted)
-      const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
-      const material = new THREE.MeshNormalMaterial();
-      const cube = new THREE.Mesh(geometry, material);
+      const clock = new THREE.Clock();
+      const btn = document.getElementById("spin-toggle");
+      let spinEnabled = false;
+      btn.addEventListener("click", () => {
+        spinEnabled = !spinEnabled;
+        btn.textContent = spinEnabled ? "Stop Spin" : "Start Spin";
+      });
 
-      // add hdri lighting
       const hdrLoader = new RGBELoader();
       hdrLoader.setDataType(THREE.HalfFloatType);
       hdrLoader.load('public/background.hdr', (texture) => {
         const pmremGenerator = new THREE.PMREMGenerator(renderer);
         pmremGenerator.compileEquirectangularShader();
-
         const envMap = pmremGenerator.fromEquirectangular(texture).texture;
-        // check if envMap is loaded
-        if (envMap) {
-          console.log("Environment map loaded successfully");
-        } else {
-          console.error("Failed to load environment map");
-        }
-        // check if envMap is not null or zero
-        if (envMap && envMap.image) {
-          console.log("Environment map is valid:", envMap);
-        } else {
-          console.error("Environment map is invalid:", envMap);
-        }
-        console.log("envMap.image", envMap.image);
-        // scene.environment = envMap;
         scene.environment = envMap;
-
-        console.log("HDRI loaded");
-
         texture.dispose();
         pmremGenerator.dispose();
       });
 
-      // add a 3d model here instead
       const loader = new GLTFLoader();
 
-      const model = loader.load('public/models/scene.gltf', handlerFunc);
+      const finalPosition = new THREE.Vector3(0, -1.7, 0);
+      const finalScale = new THREE.Vector3(0.4, 0.4, 0.4);
+      const startScale = finalScale.clone().multiplyScalar(0.6);
+      const entryOffset = 0.6;
+      const entryDuration = 0.4;
+      let entryElapsed = entryDuration;
+      let modelScene = null;
 
-      // define handlerFunc
-      function handlerFunc(gltf) {
-        const modelScene = gltf.scene || gltf.scenes?.[0] || gltf;
-
-        // Adjust transform to a reasonable default (tweak as needed)
-        modelScene.scale.set(0.5, 0.5, 0.5);
-        modelScene.position.set(0, -2, 0);
+      loader.load('public/models/scene.gltf', (gltf) => {
+        modelScene = gltf.scene || gltf.scenes?.[0] || gltf;
+        modelScene.visible = false;
+        modelScene.position.copy(finalPosition);
+        modelScene.scale.copy(finalScale);
         modelScene.rotation.set(0, 0, 0);
 
-        // Anchor to the first target (index 0)
         const anchor = mindarThree.addAnchor(0);
-
         anchor.group.add(modelScene);
-        // instantiate model where the anchor is but don't parent it to the anchor group
-        // scene.add(modelScene);
 
-        // anchor.onTargetFound = () => {
-        //   scene.add(modelScene);
-        //   // set modelScene position relative to anchor.group
-        //   modelScene.position.copy(anchor.group.position);
-        // };
-        // anchor.onTargetLost = () => {
-        //   anchor.group.visible = true; // preserve last pose while the marker is out of view
-        // };
+        anchor.onTargetFound = () => {
+          if (!modelScene) return;
+          modelScene.visible = true;
+          modelScene.position.copy(finalPosition);
+          modelScene.position.z -= entryOffset;
+          modelScene.scale.copy(startScale);
+          entryElapsed = 0;
+        };
 
-        console.log("Model loaded and anchored");
-        return modelScene;
-      }
+        anchor.onTargetLost = () => {
+          if (modelScene) modelScene.visible = false;
+        };
+      });
 
-
-
-
-
-
-
-
-
-      // add the model when it's loaded
-
-
-      // Start
       await mindarThree.start();
       renderer.setAnimationLoop(() => {
+        const delta = clock.getDelta();
+
+        if (modelScene && entryElapsed < entryDuration) {
+          entryElapsed += delta;
+          const t = Math.min(entryElapsed / entryDuration, 1);
+          const ease = t * t * (3 - 2 * t);
+          modelScene.position.z = THREE.MathUtils.lerp(finalPosition.z - entryOffset, finalPosition.z, ease);
+          modelScene.scale.lerpVectors(startScale, finalScale, ease);
+        }
+
+        if (spinEnabled && modelScene && modelScene.visible) {
+          modelScene.rotation.y += delta * 0.4;
+        }
+
         renderer.render(scene, camera);
       });
     });
+
+    function playIntroAnimation() {
+      const frameCount = 19;
+      const frameBasePath = "public/intro";
+      const fps = 12;
+      const overlay = document.getElementById("intro-overlay");
+      const frameEl = document.getElementById("intro-frame");
+      const framePaths = Array.from({ length: frameCount }, (_, i) =>
+        `${frameBasePath}/${String(i + 1).padStart(4, "0")}.png`
+      );
+      const preloadImage = (src) => new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = src;
+      });
+      const forward = Array.from({ length: frameCount }, (_, i) => i);
+      const backward = Array.from({ length: frameCount }, (_, i) => frameCount - 1 - i);
+      const sequences = ["forward", "backward", "forward"];
+      const playbackOrder = [];
+      sequences.forEach((direction, index) => {
+        const frames = direction === "forward" ? forward : backward;
+        playbackOrder.push(...(index === 0 ? frames : frames.slice(1)));
+      });
+
+      return new Promise((resolve) => {
+        if (!overlay || !frameEl || playbackOrder.length === 0) {
+          resolve();
+          return;
+        }
+        Promise.all(framePaths.map(preloadImage))
+          .then(() => {
+            overlay.style.display = "flex";
+            overlay.classList.remove("fade-out");
+            let current = 0;
+            frameEl.src = framePaths[playbackOrder[current]];
+            const interval = setInterval(() => {
+              current += 1;
+              if (current >= playbackOrder.length) {
+                clearInterval(interval);
+                overlay.classList.add("fade-out");
+                setTimeout(() => {
+                  overlay.style.display = "none";
+                  resolve();
+                }, 400);
+                return;
+              }
+              frameEl.src = framePaths[playbackOrder[current]];
+            }, 1000 / fps);
+          })
+          .catch((error) => {
+            console.warn("Intro animation skipped:", error);
+            overlay.style.display = "none";
+            resolve();
+          });
+      });
+    }
+
+    async function startMindarExperience() {
+    }
   </script>
 </body>
 
