@@ -81,8 +81,10 @@
       const mindarThree = new MindARThree({
         container: document.querySelector("#container"),
         imageTargetSrc: "public/targets/targets.mind", // <-- Use your compiled .mind file
-        missTolerance: 100, // increase missTolerance to avoid flickering
-        filterMinCF: 0.9,
+        missTolerance: 10, // increase missTolerance to avoid flickering
+        filterMinCF: 0.1,
+        filterBeta: 1,
+        warmupTolerance: 10,
       });
       const { renderer, scene, camera } = mindarThree;
 
